@@ -1,12 +1,7 @@
-// /api/snapshot.js
-// Shared snapshot storage via Vercel Blob
-// GET: returns current and previous snapshots
-// POST: saves a new snapshot (moves current → previous)
-
-import { put, list, del, head } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
 
 export const config = {
-  maxDuration: 10,
+  maxDuration: 60,
 };
 
 export default async function handler(req, res) {
@@ -17,38 +12,30 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method === 'GET') {
-    // Return current and previous snapshot metadata + data
     try {
       const blobs = await list({ prefix: 'snapshots/' });
-      const files = blobs.blobs || [];
-
-      // Find current and previous
-      const currentBlob = files.find(f => f.pathname === 'snapshots/current.json');
-      const previousBlob = files.find(f => f.pathname === 'snapshots/previous.json');
+      const files = (blobs.blobs || [])
+        .filter(f => f.pathname.startsWith('snapshots/'))
+        .sort((a, b) => b.pathname.localeCompare(a.pathname));
 
       let current = null;
       let previous = null;
 
-      if (currentBlob) {
-        const resp = await fetch(currentBlob.url);
+      if (files.length > 0) {
+        const resp = await fetch(files[0].url);
         if (resp.ok) current = await resp.json();
       }
-
-      if (previousBlob) {
-        const resp = await fetch(previousBlob.url);
+      if (files.length > 1) {
+        const resp = await fetch(files[1].url);
         if (resp.ok) previous = await resp.json();
       }
 
-      // Also get list of all archived snapshots (just metadata, not full data)
-      const archives = files
-        .filter(f => f.pathname.startsWith('snapshots/archive-'))
-        .map(f => ({
-          pathname: f.pathname,
-          weekKey: f.pathname.replace('snapshots/archive-', '').replace('.json', ''),
-          uploadedAt: f.uploadedAt,
-          size: f.size,
-        }))
-        .sort((a, b) => b.weekKey.localeCompare(a.weekKey));
+      const archives = files.map(f => ({
+        pathname: f.pathname,
+        weekKey: f.pathname.replace('snapshots/', '').replace('.json', ''),
+        uploadedAt: f.uploadedAt,
+        size: f.size,
+      }));
 
       return res.status(200).json({ current, previous, archives });
     } catch (err) {
@@ -57,44 +44,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    // Save a new snapshot
     try {
       const snapshot = req.body;
       if (!snapshot || !snapshot.weekKey || !snapshot.playlists) {
         return res.status(400).json({ error: 'Invalid snapshot format' });
       }
 
-      // First, try to load current to move it to previous
-      try {
-        const blobs = await list({ prefix: 'snapshots/current' });
-        const currentBlob = (blobs.blobs || []).find(f => f.pathname === 'snapshots/current.json');
-        if (currentBlob) {
-          const resp = await fetch(currentBlob.url);
-          if (resp.ok) {
-            const oldCurrent = await resp.text();
-            // Move to previous
-            await put('snapshots/previous.json', oldCurrent, {
-              access: 'public',
-              contentType: 'application/json',
-              addRandomSuffix: false,
-            });
-          }
-        }
-      } catch (e) {
-        // No existing current, that's fine
-      }
-
-      const jsonStr = JSON.stringify(snapshot);
-
-      // Save as current
-      await put('snapshots/current.json', jsonStr, {
-        access: 'public',
-        contentType: 'application/json',
-        addRandomSuffix: false,
-      });
-
-      // Also archive by week key
-      await put(`snapshots/archive-${snapshot.weekKey}.json`, jsonStr, {
+      await put(`snapshots/${snapshot.weekKey}.json`, JSON.stringify(snapshot), {
         access: 'public',
         contentType: 'application/json',
         addRandomSuffix: false,
