@@ -168,45 +168,65 @@ export default function Dashboard() {
 
   const analytics = useMemo(() => {
     if (!data) return null;
-    const all = [];
-    const stats = {};
-    const countries = new Set();
 
-    Object.entries(data.playlists).forEach(([pid, rankings]) => {
-      if (!rankings || !rankings.length) return;
-      const filtered = rankings.filter(r => {
-        if (filterCountry !== "ALL" && r.country !== filterCountry) return false;
-        if (filterVolume !== "ALL" && r.volume_estimation !== filterVolume) return false;
-        if (search && !r.keyword.toLowerCase().includes(search.toLowerCase())) return false;
-        return true;
-      });
-      filtered.forEach(r => {
-        countries.add(r.country);
-        all.push({ ...r, playlistId: pid });
-      });
-      const avg = filtered.length ? filtered.reduce((s, r) => s + r.position, 0) / filtered.length : 0;
-      const top = [...filtered].sort((a, b) => {
-        const vd = (VOL_ORDER[b.volume_estimation] || 0) - (VOL_ORDER[a.volume_estimation] || 0);
-        return vd !== 0 ? vd : a.position - b.position;
-      })[0] || null;
-      stats[pid] = { total: filtered.length, avg, top, rankings: filtered };
-    });
+    const passesFilters = (r) => {
+      if (filterCountry !== "ALL" && r.country !== filterCountry) return false;
+      if (filterVolume !== "ALL" && r.volume_estimation !== filterVolume) return false;
+      if (search && !r.keyword.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    };
 
-    // Also get all countries unfiltered
+    // Same computation for any snapshot, so current and comparison weeks are
+    // measured identically and their headline figures can be diffed directly.
+    const summarise = (snapshot) => {
+      const all = [];
+      const stats = {};
+      Object.entries(snapshot.playlists).forEach(([pid, rankings]) => {
+        if (!rankings || !rankings.length) return;
+        const filtered = rankings.filter(passesFilters);
+        if (!filtered.length) return;
+        filtered.forEach(r => all.push({ ...r, playlistId: pid }));
+        const avg = filtered.reduce((s, r) => s + r.position, 0) / filtered.length;
+        const top = [...filtered].sort((a, b) => {
+          const vd = (VOL_ORDER[b.volume_estimation] || 0) - (VOL_ORDER[a.volume_estimation] || 0);
+          return vd !== 0 ? vd : a.position - b.position;
+        })[0] || null;
+        stats[pid] = { total: filtered.length, avg, top, rankings: filtered };
+      });
+
+      const strike = all
+        .filter(r => r.position >= 2 && r.position <= 5 && (VOL_ORDER[r.volume_estimation] || 0) >= 3)
+        .sort((a, b) => {
+          const vd = (VOL_ORDER[b.volume_estimation] || 0) - (VOL_ORDER[a.volume_estimation] || 0);
+          return vd !== 0 ? vd : a.position - b.position;
+        });
+
+      const ones = all.filter(r => r.position === 1)
+        .sort((a, b) => (VOL_ORDER[b.volume_estimation] || 0) - (VOL_ORDER[a.volume_estimation] || 0));
+
+      const topPlaylists = Object.entries(stats)
+        .filter(([, s]) => s.total > 0)
+        .sort((a, b) => b[1].total - a[1].total);
+
+      return {
+        all, stats, strike, ones, topPlaylists,
+        totals: {
+          activePlaylists: topPlaylists.length,
+          rankings: all.length,
+          numberOnes: ones.length,
+          strikeDistance: strike.length,
+        },
+      };
+    };
+
+    const cur = summarise(data);
+    const prev = prevData ? summarise(prevData) : null;
+
+    // Country list stays unfiltered so the dropdown never shrinks to its own selection.
     const allCountries = new Set();
     Object.values(data.playlists).forEach(rankings => {
       if (rankings) rankings.forEach(r => allCountries.add(r.country));
     });
-
-    const strike = all
-      .filter(r => r.position >= 2 && r.position <= 5 && (VOL_ORDER[r.volume_estimation] || 0) >= 3)
-      .sort((a, b) => {
-        const vd = (VOL_ORDER[b.volume_estimation] || 0) - (VOL_ORDER[a.volume_estimation] || 0);
-        return vd !== 0 ? vd : a.position - b.position;
-      });
-
-    const ones = all.filter(r => r.position === 1)
-      .sort((a, b) => (VOL_ORDER[b.volume_estimation] || 0) - (VOL_ORDER[a.volume_estimation] || 0));
 
     let movers = [];
     if (prevData) {
@@ -214,7 +234,7 @@ export default function Dashboard() {
       Object.entries(prevData.playlists).forEach(([pid, rankings]) => {
         if (rankings) rankings.forEach(r => { pm[`${pid}::${r.keyword}::${r.country}`] = r.position; });
       });
-      all.forEach(r => {
+      cur.all.forEach(r => {
         const k = `${r.playlistId}::${r.keyword}::${r.country}`;
         if (pm[k] !== undefined) {
           const ch = pm[k] - r.position;
@@ -224,11 +244,30 @@ export default function Dashboard() {
       movers.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
     }
 
-    const topPlaylists = Object.entries(stats)
-      .filter(([, s]) => s.total > 0)
-      .sort((a, b) => b[1].total - a[1].total);
+    // Keywords held at #1 last week but not this week, and vice versa.
+    let onesGained = [], onesLost = [];
+    if (prev) {
+      const key = r => `${r.playlistId}::${r.keyword}::${r.country}`;
+      const curOnes = new Set(cur.ones.map(key));
+      const prevOnes = new Set(prev.ones.map(key));
+      onesGained = cur.ones.filter(r => !prevOnes.has(key(r)));
+      onesLost = prev.ones.filter(r => !curOnes.has(key(r)));
+    }
 
-    return { all, stats, countries: allCountries, strike, ones, movers, topPlaylists };
+    return {
+      all: cur.all,
+      stats: cur.stats,
+      strike: cur.strike,
+      ones: cur.ones,
+      topPlaylists: cur.topPlaylists,
+      totals: cur.totals,
+      prevTotals: prev ? prev.totals : null,
+      prevStats: prev ? prev.stats : null,
+      onesGained,
+      onesLost,
+      countries: allCountries,
+      movers,
+    };
   }, [data, prevData, filterCountry, filterVolume, search]);
 
   useEffect(() => { setPage(0); }, [tab, filterCountry, filterVolume, search]);
@@ -296,6 +335,20 @@ export default function Dashboard() {
         <span style={{ fontSize: 12, color: "#666" }}>{page + 1} / {pages}</span>
         <button onClick={() => setPage(Math.min(pages - 1, page + 1))} disabled={page >= pages - 1}
           style={{ padding: "6px 12px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: page >= pages - 1 ? "#444" : "#ccc", cursor: page >= pages - 1 ? "default" : "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif" }}>Next</button>
+      </div>
+    );
+  };
+
+  // Week-over-week change shown under a headline figure.
+  // higherIsBetter=false for metrics where a lower number is an improvement.
+  const Delta = ({ now, then, higherIsBetter = true, suffix = "" }) => {
+    if (then === null || then === undefined) return null;
+    const d = now - then;
+    if (d === 0) return <div style={{ fontSize: 10, color: "#555", marginTop: 3 }}>no change vs {prevData.weekKey}</div>;
+    const good = higherIsBetter ? d > 0 : d < 0;
+    return (
+      <div style={{ fontSize: 10, marginTop: 3, color: good ? "#1DB954" : "#ef4444", fontWeight: 600 }}>
+        {d > 0 ? "+" : "\u2212"}{Math.abs(d).toLocaleString()}{suffix} vs {prevData.weekKey}
       </div>
     );
   };
@@ -408,18 +461,22 @@ export default function Dashboard() {
         <div style={statCard}>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#1DB954" }}>{activeCount}</div>
           <div style={{ fontSize: 10, color: "#888", marginTop: 2, letterSpacing: "0.05em" }}>ACTIVE PLAYLISTS</div>
+          <Delta now={analytics.totals.activePlaylists} then={analytics.prevTotals?.activePlaylists} />
         </div>
         <div style={statCard}>
           <div style={{ fontSize: 28, fontWeight: 700 }}>{totalRankings.toLocaleString()}</div>
           <div style={{ fontSize: 10, color: "#888", marginTop: 2, letterSpacing: "0.05em" }}>TOTAL RANKINGS</div>
+          <Delta now={analytics.totals.rankings} then={analytics.prevTotals?.rankings} />
         </div>
         <div style={statCard}>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#facc15" }}>{totalP1}</div>
           <div style={{ fontSize: 10, color: "#888", marginTop: 2, letterSpacing: "0.05em" }}>#1 POSITIONS</div>
+          <Delta now={analytics.totals.numberOnes} then={analytics.prevTotals?.numberOnes} />
         </div>
         <div style={statCard}>
           <div style={{ fontSize: 28, fontWeight: 700, color: "#f97316" }}>{totalStrike}</div>
           <div style={{ fontSize: 10, color: "#888", marginTop: 2, letterSpacing: "0.05em" }}>STRIKE DISTANCE</div>
+          <Delta now={analytics.totals.strikeDistance} then={analytics.prevTotals?.strikeDistance} />
         </div>
       </div>
 
@@ -598,6 +655,49 @@ export default function Dashboard() {
           <p style={{ fontSize: 13, color: "#888", marginBottom: 16, lineHeight: 1.5 }}>
             All keywords where your playlists hold #1. Protect these.
           </p>
+
+          {prevData && (analytics.onesGained.length > 0 || analytics.onesLost.length > 0) && (
+            <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+              <div style={{ ...card, padding: "12px 16px", flex: 1, minWidth: 240 }}>
+                <div style={{ fontSize: 11, color: "#1DB954", fontWeight: 600, letterSpacing: "0.05em", marginBottom: 6 }}>
+                  GAINED SINCE {prevData.weekKey} · {analytics.onesGained.length}
+                </div>
+                {analytics.onesGained.length === 0
+                  ? <div style={{ fontSize: 12, color: "#555" }}>None</div>
+                  : analytics.onesGained.slice(0, 5).map((r, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#ccc", marginTop: 2 }}>
+                        {r.keyword} <span style={{ color: "#666" }}>{r.country}</span>
+                      </div>
+                    ))}
+                {analytics.onesGained.length > 5 && (
+                  <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
+                    +{analytics.onesGained.length - 5} more
+                  </div>
+                )}
+              </div>
+
+              <div style={{ ...card, padding: "12px 16px", flex: 1, minWidth: 240, borderColor: analytics.onesLost.length ? "rgba(239,68,68,0.3)" : "rgba(255,255,255,0.08)" }}>
+                <div style={{ fontSize: 11, color: "#ef4444", fontWeight: 600, letterSpacing: "0.05em", marginBottom: 6 }}>
+                  LOST SINCE {prevData.weekKey} · {analytics.onesLost.length}
+                </div>
+                {analytics.onesLost.length === 0
+                  ? <div style={{ fontSize: 12, color: "#555" }}>None — nothing slipped</div>
+                  : analytics.onesLost.slice(0, 5).map((r, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#ccc", marginTop: 2 }}>
+                        {r.keyword} <span style={{ color: "#666" }}>{r.country}</span>
+                        <span style={{ color: VOL_CLR[r.volume_estimation], fontSize: 10, marginLeft: 6 }}>
+                          {VOL_LABEL[r.volume_estimation]}
+                        </span>
+                      </div>
+                    ))}
+                {analytics.onesLost.length > 5 && (
+                  <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
+                    +{analytics.onesLost.length - 5} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {analytics.ones.length === 0 ? (
             <div style={{ ...card, textAlign: "center", padding: 40, color: "#555" }}>No #1 positions with current filters.</div>
           ) : (
