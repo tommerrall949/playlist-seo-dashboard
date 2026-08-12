@@ -94,6 +94,7 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState(null);
   const [listeners, setListeners] = useState(LISTENERS_BUNDLED);
+  const [summaries, setSummaries] = useState(null);
   const [listenerSource, setListenerSource] = useState("bundled");
   const [sensitivity, setSensitivity] = useState("balanced");
   const cache = useRef(new Map());
@@ -121,6 +122,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
+      try {
+        const resp = await fetch("/api/summaries");
+        if (resp.ok) {
+          const s = await resp.json();
+          if (s && s.summaries && Object.keys(s.summaries).length) setSummaries(s);
+        }
+      } catch {
+        // ranking-shift column degrades to "unavailable"
+      }
       try {
         const resp = await fetch("/api/listeners");
         if (resp.ok) {
@@ -368,14 +378,26 @@ export default function Dashboard() {
       }
     }
 
-    const rankDelta = {};
-    if (analytics && analytics.prevStats) {
-      for (const [pid, s] of Object.entries(analytics.stats)) {
-        const p = analytics.prevStats[pid];
-        if (!p) continue;
-        rankDelta[pid] = { dAvg: s.avg - p.avg, dCount: s.total - p.total };
-      }
-    }
+    // Ranking shift per flag: nearest snapshot at or before the flagged week vs the
+    // one before it. Snapshot weeks have gaps, so each row reports the weeks used.
+    const snapWeeks = summaries ? [...summaries.weeks].sort() : [];
+    const shiftFor = (pid, week) => {
+      if (!snapWeeks.length) return { state: "unavailable" };
+      const atOrBefore = snapWeeks.filter(w => w <= week);
+      if (atOrBefore.length < 2) return { state: "before-rankings" };
+      const to = atOrBefore[atOrBefore.length - 1];
+      const from = atOrBefore[atOrBefore.length - 2];
+      const a = summaries.summaries[from] && summaries.summaries[from][pid];
+      const b = summaries.summaries[to] && summaries.summaries[to][pid];
+      if (!a || !b) return { state: "no-data" };
+      return {
+        state: "ok", from, to, exact: to === week,
+        dAvg: b[1] - a[1],   // negative = climbed
+        dCount: b[0] - a[0],
+        dOnes: b[2] - a[2],
+      };
+    };
+    for (const f of flags) f.shift = shiftFor(f.pid, f.week);
 
     const covered = Object.keys(listeners.weeks).length;
     const lowSignal = Object.values(listeners.reliability || {})
@@ -387,12 +409,12 @@ export default function Dashboard() {
       dips: flags.filter(f => f.z < 0),
       allWeeks,
       totalsByWeek,
-      rankDelta,
+      snapWeeks,
       covered,
       lowSignal,
       cfg,
     };
-  }, [listeners, sensitivity, analytics]);
+  }, [listeners, sensitivity, summaries]);
 
   useEffect(() => { setPage(0); }, [tab, filterCountry, filterVolume, search]);
 
@@ -404,7 +426,7 @@ export default function Dashboard() {
         <div style={{ textAlign: "center", maxWidth: 440 }}>
           <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#1DB954", marginBottom: 8, fontWeight: 600 }}>PLAYLIST RANKINGS</div>
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: "0 0 12px" }}>
-            {nothingArchived ? "No snapshots yet" : "Loading\u2026"}
+            {nothingArchived ? "No snapshots yet" : "Loading…"}
           </h1>
           {nothingArchived ? (
             <>
@@ -419,12 +441,12 @@ export default function Dashboard() {
                 fontFamily: "'DM Sans', sans-serif"
               }}>
                 {refreshing
-                  ? `Pulling\u2026 ${refreshProgress?.done || 0}/${refreshProgress?.total || 125}`
+                  ? `Pulling… ${refreshProgress?.done || 0}/${refreshProgress?.total || 125}`
                   : "Pull first snapshot"}
               </button>
             </>
           ) : (
-            <p style={{ fontSize: 13, color: "#555" }}>Fetching shared data\u2026</p>
+            <p style={{ fontSize: 13, color: "#555" }}>Fetching shared data…</p>
           )}
         </div>
       </div>
@@ -472,7 +494,7 @@ export default function Dashboard() {
     const good = higherIsBetter ? d > 0 : d < 0;
     return (
       <div style={{ fontSize: 10, marginTop: 3, color: good ? "#1DB954" : "#ef4444", fontWeight: 600 }}>
-        {d > 0 ? "+" : "\u2212"}{Math.abs(d).toLocaleString()}{suffix} vs {prevData.weekKey}
+        {d > 0 ? "+" : "−"}{Math.abs(d).toLocaleString()}{suffix} vs {prevData.weekKey}
       </div>
     );
   };
@@ -732,7 +754,7 @@ export default function Dashboard() {
             {prevData
               ? `${data.weekKey} vs ${prevData.weekKey}, sorted by biggest position change. Green means the playlist climbed.`
               : archives.length > 1
-                ? "Pick a week under \u201cCompare to\u201d above to see movement between any two snapshots."
+                ? "Pick a week under “Compare to” above to see movement between any two snapshots."
                 : "Only one week archived so far. Refresh again next week and this tab will fill in."}
           </p>
           {analytics.movers.length === 0 ? (
@@ -853,13 +875,13 @@ export default function Dashboard() {
         <div>
           <p style={{ fontSize: 13, color: "#888", marginBottom: 6, lineHeight: 1.5 }}>
             New listeners per playlist per day, aggregated weekly. A week is flagged when it
-            departs from that playlist{"\u2019"}s own recent norm \u2014 not against a portfolio-wide
+            departs from that playlist{"’"}s own recent norm — not against a portfolio-wide
             threshold, since these playlists differ hugely in size.
           </p>
           <p style={{ fontSize: 12, color: "#666", marginBottom: 18, lineHeight: 1.5 }}>
             Covers {listenerView.covered} of {ALL_IDS.length} playlists
-            {listeners.dateRange && <> \u00b7 {listeners.dateRange[0]} to {listeners.dateRange[1]}</>}
-            {" \u00b7 "}source: {listenerSource === "live" ? "live sheet" : "bundled snapshot"}
+            {listeners.dateRange && <> · {listeners.dateRange[0]} to {listeners.dateRange[1]}</>}
+            {" · "}source: {listenerSource === "live" ? "live sheet" : "bundled snapshot"}
           </p>
 
           <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center", flexWrap: "wrap" }}>
@@ -872,7 +894,7 @@ export default function Dashboard() {
               ))}
             </select>
             <span style={{ fontSize: 11, color: "#555" }}>
-              needs |z| \u2265 {listenerView.cfg.z}, \u2265 {listenerView.cfg.minAbs}/day and \u2265 {listenerView.cfg.minPct}% change
+              needs |z| ≥ {listenerView.cfg.z}, ≥ {listenerView.cfg.minAbs}/day and ≥ {listenerView.cfg.minPct}% change
             </span>
           </div>
 
@@ -926,8 +948,7 @@ export default function Dashboard() {
                 {listenerView.flags.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((f, i) => {
                   const rel = (listeners.reliability || {})[f.pid];
                   const weak = rel && rel.signal !== null && rel.signal < 1;
-                  const rd = listenerView.rankDelta[f.pid];
-                  const sameWeek = f.week === (data && data.weekKey);
+                  const sh = f.shift;
                   return (
                     <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
                       <td style={{ padding: "10px 12px", color: "#aaa", fontWeight: 500 }}>
@@ -944,23 +965,34 @@ export default function Dashboard() {
                           background: f.z > 0 ? "rgba(29,185,84,0.15)" : "rgba(239,68,68,0.15)",
                           color: f.z > 0 ? "#1DB954" : "#ef4444"
                         }}>
-                          {f.z > 0 ? "\u25b2" : "\u25bc"} {Math.abs(f.pctChg).toFixed(0)}%
+                          {f.z > 0 ? "▲" : "▼"} {Math.abs(f.pctChg).toFixed(0)}%
                         </span>
                       </td>
                       <td style={{ padding: "10px 12px", color: "#ddd" }}>
-                        {f.baseline.toFixed(1)} \u2192 <strong>{f.perDay.toFixed(1)}</strong>
+                        {f.baseline.toFixed(1)} → <strong>{f.perDay.toFixed(1)}</strong>
                       </td>
                       <td style={{ padding: "10px 12px", color: "#888" }}>{f.total.toLocaleString()}</td>
                       <td style={{ padding: "10px 12px" }}>
-                        {!sameWeek || !rd ? (
+                        {sh.state !== "ok" ? (
                           <span style={{ color: "#555", fontSize: 11 }}>
-                            {sameWeek ? "no ranking data" : "\u2014"}
+                            {sh.state === "before-rankings" ? "before ranking data"
+                              : sh.state === "no-data" ? "not ranked that week"
+                              : "unavailable"}
                           </span>
                         ) : (
-                          <span style={{ fontSize: 11, color: rd.dAvg < 0 ? "#1DB954" : rd.dAvg > 0 ? "#ef4444" : "#888" }}>
-                            {rd.dAvg < 0 ? "\u25b2" : rd.dAvg > 0 ? "\u25bc" : ""} {Math.abs(rd.dAvg).toFixed(1)} avg pos
-                            {rd.dCount !== 0 && <span style={{ color: "#666" }}>, {rd.dCount > 0 ? "+" : ""}{rd.dCount} kw</span>}
-                          </span>
+                          <div style={{ fontSize: 11 }}>
+                            <span style={{ color: sh.dAvg < 0 ? "#1DB954" : sh.dAvg > 0 ? "#ef4444" : "#888", fontWeight: 600 }}>
+                              {sh.dAvg < 0 ? "▲" : sh.dAvg > 0 ? "▼" : ""} {Math.abs(sh.dAvg).toFixed(1)} avg pos
+                            </span>
+                            {sh.dOnes !== 0 && (
+                              <span style={{ color: sh.dOnes > 0 ? "#1DB954" : "#ef4444" }}>
+                                {" · "}{sh.dOnes > 0 ? "+" : ""}{sh.dOnes} #1
+                              </span>
+                            )}
+                            <div style={{ color: "#555", fontSize: 10 }}>
+                              {sh.from}{"→"}{sh.to}{!sh.exact && " (nearest)"}
+                            </div>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -972,9 +1004,11 @@ export default function Dashboard() {
           <Paginator total={listenerView.flags.length} />
 
           <div style={{ fontSize: 11, color: "#555", marginTop: 16, lineHeight: 1.6 }}>
-            The ranking-shift column is populated only for flags in the week you are viewing
-            ({data && data.weekKey}), compared against {prevData ? prevData.weekKey : "your chosen compare week"},
-            because only those two snapshots are loaded. Change the week picker above to line up a different flag.
+            Ranking shift compares the nearest ranking snapshot at or before each flagged week
+            against the snapshot before it; the weeks used are shown beneath each value.
+            {listenerView.snapWeeks.length > 0 && <> Snapshots available: {listenerView.snapWeeks.join(", ")}.</>}
+            {" "}Listener data begins {listeners.dateRange && listeners.dateRange[0]}, before ranking
+            tracking started, so earlier flags have nothing to compare against.
           </div>
         </div>
       )}
