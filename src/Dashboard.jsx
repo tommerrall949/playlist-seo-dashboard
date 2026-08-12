@@ -8,6 +8,63 @@ const NAMES = {"04QkAvOjyjVQoJJ4YRodYg":"Acoustic Pop Covers - soft guitar & pia
 // The 125 tracked playlists — same list the names map is keyed by.
 const ALL_IDS = Object.keys(NAMES);
 
+// Weekly new-listener figures per playlist: { pid: [[weekKey, total, daysReported], ...] }
+// Bundled fallback; /api/listeners overrides this when LISTENER_CSV_URL is configured.
+const LISTENERS_BUNDLED = {"metric":"New listeners per day","sourceNote":"Source column header reads 'Average streams per track'; confirmed to contain new-listener counts.","dateRange":["2026-02-14","2026-08-10"],"weeks":{"0KWNDmgdm1qpjkFR5Afc9B":[["2026-W07",5,2],["2026-W08",15,7],["2026-W09",21,7],["2026-W10",19,7],["2026-W11",15,7],["2026-W12",16,7],["2026-W13",17,7],["2026-W14",16,7],["2026-W15",19,7],["2026-W16",17,7],["2026-W17",19,7],["2026-W18",17,7],["2026-W19",18,7],["2026-W20",21,7],["2026-W21",20,7],["2026-W22",20,7],["2026-W23",16,7],["2026-W24",21,7],["2026-W25",12,6],["2026-W26",15,7],["2026-W27",16,7],["2026-W28",19,7],["2026-W29",20,7],["2026-W30",15,7],["2026-W31",16,7],["2026-W32",15,7],["2026-W33",3,1]],"0LqAOilr2am1uzcPFpLZuq":[["2026-W13",3,2],["2026-W14",14,2],["2026-W15",19,7],["2026-W16",1,1]],"0pQus2qwWo0mBQ3kJYQzWs":[["2026-W12",16,4],["2026-W13",10,4]],"0yQ6AqQTIo9rEqxEhQEgnn":[["2026-W13",3,1],["2026-W18",10,5],["2026-W19",2,1]],"1mXjVANI52YlC9p8ezrQOi":[["2026-W18",26,7],["2026-W19",16,6],["2026-W24",4,2],["2026-W25",14,6],["2026-W26",2,1],["2026-W27",9,4]],"2ClTRLxqCo0XLWM0i5emPj":[["2026-W13",6,2],["2026-W14",4,1]],"2o0iDBT6JdzLoMEKEH9t09":[["2026-W13",5,2],["2026-W14",20,5],["2026-W15",29,7],["2026-W16",2,2],["2026-W18",19,7]],"2oYnQqYNtVntgFmQzJ8w9e":[["2026-W12",14,4],["2026-W13",1,1],["2026-W18",36,6],["2026-W19",6,2]],"2QdwrCBPnkzLQdT8MG4N7s":[["2026-W13",13,4],["2026-W14",47,7],["2026-W15",43,7],["2026-W16",30,7],["2026-W17",30,7],["2026-W18",28,7],["2026-W19",34,7],["2026-W20",43,7],["2026-W21",41,7],["2026-W22",27,7],["2026-W23",33,7],["2026-W24",24,7],["2026-W25",25,6],["2026-W26",33,7],["2026-W27",29,7],["2026-W28",34,7],["2026-W29",41,7],["2026-W30",35,7],["2026-W31",53,7],["2026-W32",60,7],["2026-W33",9,1]],"2T6OYYXolbGW5al7CN9pyQ":[["2026-W18",10,5],["2026-W19",2,2]],"2w2J0f3Fuorw01qDoqGPRQ":[["2026-W07",53,2],["2026-W08",137,7],["2026-W09",133,7],["2026-W10",160,7],["2026-W11",159,7],["2026-W12",246,7],["2026-W13",217,7],["2026-W14",237,7],["2026-W15",312,7],["2026-W16",281,7],["2026-W17",222,7],["2026-W18",203,7],["2026-W19",143,7],["2026-W20",153,7],["2026-W21",147,7],["2026-W22",171,7],["2026-W23",152,7],["2026-W24",165,7],["2026-W25",125,6],["2026-W26",151,7],["2026-W27",147,7],["2026-W28",160,7],["2026-W29",178,7],["2026-W30",188,7],["2026-W31",161,7],["2026-W32",156,7],["2026-W33",25,1]],"2xjUohMRmALykvtyWO9RgC":[["2026-W18",20,6],["2026-W19",25,7],["2026-W20",25,7],["2026-W21",30,7],["2026-W22",52,7],["2026-W23",27,7],["2026-W24",29,7],["2026-W25",30,6],["2026-W26",30,7],["2026-W27",30,7],["2026-W28",35,7],["2026-W29",27,7],["2026-W30",22,7],["2026-W31",23,7],["2026-W32",26,7],["2026-W33",2,1]],"30z2Uvti6avpIBjJjSzOJ4":[["2026-W12",12,4],["2026-W13",18,6],["2026-W14",13,5],["2026-W15",2,1],["2026-W16",6,2],["2026-W17",14,7],["2026-W18",12,5],["2026-W19",9,4],["2026-W20",9,4],["2026-W21",17,7],["2026-W22",16,7],["2026-W23",19,7],["2026-W24",19,7],["2026-W25",15,6],["2026-W26",17,7],["2026-W27",13,7],["2026-W28",17,7],["2026-W29",16,7],["2026-W30",18,7],["2026-W31",16,7],["2026-W32",16,7],["2026-W33",2,1]],"34RGdLe7N46QKey8oPGHMQ":[["2026-W12",14,4],["2026-W13",6,4],["2026-W14",26,7],["2026-W15",19,7],["2026-W16",11,5],["2026-W17",13,5],["2026-W18",21,7],["2026-W19",19,7],["2026-W20",17,7],["2026-W21",19,7],["2026-W22",16,7],["2026-W23",19,7],["2026-W24",31,7],["2026-W25",30,6],["2026-W26",27,7],["2026-W27",29,7],["2026-W28",22,7],["2026-W29",24,7],["2026-W30",20,7],["2026-W31",20,7],["2026-W32",20,7],["2026-W33",2,1]],"3HbIIQmDmeWSfAC0c8Mdib":[["2026-W07",8,2],["2026-W08",26,7],["2026-W09",28,7],["2026-W10",30,7],["2026-W11",30,7],["2026-W12",33,7],["2026-W13",33,7],["2026-W14",37,7],["2026-W15",42,7],["2026-W16",28,7],["2026-W17",38,7],["2026-W18",46,7],["2026-W19",35,7],["2026-W20",33,7],["2026-W21",33,7],["2026-W22",32,7],["2026-W23",37,7],["2026-W24",37,7],["2026-W25",26,6],["2026-W26",39,7],["2026-W27",36,7],["2026-W28",41,7],["2026-W29",35,7],["2026-W30",39,7],["2026-W31",47,7],["2026-W32",42,7],["2026-W33",5,1]],"3j3d3essIaiBhSVNKmWkJp":[["2026-W12",20,7],["2026-W13",17,7],["2026-W14",38,7],["2026-W15",21,7],["2026-W16",59,7],["2026-W17",100,7],["2026-W18",80,7],["2026-W19",52,7],["2026-W20",62,7],["2026-W21",81,7],["2026-W22",69,7],["2026-W23",58,7],["2026-W24",74,7],["2026-W25",50,6],["2026-W26",56,7],["2026-W27",49,7],["2026-W28",41,7],["2026-W29",35,7],["2026-W30",48,7],["2026-W31",37,7],["2026-W32",33,7],["2026-W33",5,1]],"3jmdfJOlbtBuJjTZu2dt9n":[["2026-W13",6,3],["2026-W14",1,1]],"3oSth5cpzQFIDtFz3tktLX":[["2026-W07",55,2],["2026-W08",128,7],["2026-W09",121,7],["2026-W10",102,7],["2026-W11",98,7],["2026-W12",111,7],["2026-W13",102,7],["2026-W14",94,7],["2026-W15",96,7],["2026-W16",80,7],["2026-W17",71,7],["2026-W18",68,7],["2026-W19",61,7],["2026-W20",77,7],["2026-W21",70,7],["2026-W22",57,7],["2026-W23",66,7],["2026-W24",75,7],["2026-W25",61,6],["2026-W26",58,7],["2026-W27",63,7],["2026-W28",81,7],["2026-W29",76,7],["2026-W30",63,7],["2026-W31",55,7],["2026-W32",56,7],["2026-W33",8,1]],"3tIgSaR1F86qWnVK1FBFEI":[["2026-W13",7,3],["2026-W14",32,7],["2026-W15",26,7],["2026-W16",2,2],["2026-W17",8,3],["2026-W20",7,4],["2026-W32",2,2]],"3yvyOHGzWsfZ01aiPIdobz":[["2026-W07",31,2],["2026-W08",70,7],["2026-W09",34,7],["2026-W10",26,7],["2026-W11",28,7],["2026-W12",28,7],["2026-W13",23,7],["2026-W14",15,7],["2026-W15",20,7],["2026-W16",16,7],["2026-W17",31,7],["2026-W18",31,7],["2026-W19",23,7],["2026-W20",20,7],["2026-W21",17,7],["2026-W22",15,7],["2026-W23",15,7],["2026-W24",15,7],["2026-W25",11,6],["2026-W26",13,7],["2026-W27",15,7],["2026-W28",14,7],["2026-W29",15,7],["2026-W30",12,7],["2026-W31",12,7],["2026-W32",11,7],["2026-W33",1,1]],"4DfIxfW4dYEA2bESKkXybL":[["2026-W07",13,2],["2026-W08",35,7],["2026-W09",26,7],["2026-W10",27,7],["2026-W11",42,7],["2026-W12",94,7],["2026-W13",74,7],["2026-W14",60,7],["2026-W15",56,7],["2026-W16",81,7],["2026-W17",100,7],["2026-W18",84,7],["2026-W19",66,7],["2026-W20",84,7],["2026-W21",113,7],["2026-W22",96,7],["2026-W23",94,7],["2026-W24",100,7],["2026-W25",94,6],["2026-W26",97,7],["2026-W27",122,7],["2026-W28",169,7],["2026-W29",171,7],["2026-W30",148,7],["2026-W31",103,7],["2026-W32",99,7],["2026-W33",11,1]],"4okxpsvl9zGntySwuPZlSF":[["2026-W07",9,2],["2026-W08",36,7],["2026-W09",27,7],["2026-W10",35,7],["2026-W11",39,7],["2026-W12",47,7],["2026-W13",49,7],["2026-W14",54,7],["2026-W15",51,7],["2026-W16",44,7],["2026-W17",37,7],["2026-W18",40,7],["2026-W19",35,7],["2026-W20",37,7],["2026-W21",33,7],["2026-W22",30,7],["2026-W23",29,7],["2026-W24",31,7],["2026-W25",21,6],["2026-W26",25,7],["2026-W27",30,7],["2026-W28",30,7],["2026-W29",31,7],["2026-W30",29,7],["2026-W31",33,7],["2026-W32",36,7],["2026-W33",5,1]],"4SS97ZLuDKfAkNYYudsORc":[["2026-W18",20,7],["2026-W19",19,7],["2026-W20",18,7],["2026-W21",12,7],["2026-W22",12,7],["2026-W23",18,7],["2026-W24",21,7],["2026-W25",20,6],["2026-W26",25,7],["2026-W27",22,7],["2026-W28",22,7],["2026-W29",18,7],["2026-W30",18,7],["2026-W31",19,7],["2026-W32",29,7],["2026-W33",5,1]],"50cnwTxU70x8zEBI8QroFp":[["2026-W07",10,2],["2026-W08",13,7],["2026-W09",2,2],["2026-W10",17,7],["2026-W11",19,7],["2026-W12",17,7],["2026-W13",20,7],["2026-W14",28,7],["2026-W15",12,7],["2026-W16",7,5],["2026-W17",13,7],["2026-W20",9,5],["2026-W21",2,2],["2026-W27",2,1],["2026-W30",2,2]],"5AtiqHgg1KJ3abdZ4LBcWx":[["2026-W08",7,5],["2026-W17",3,1],["2026-W18",19,7],["2026-W19",22,7],["2026-W20",22,7],["2026-W21",21,7],["2026-W22",17,7],["2026-W23",16,7],["2026-W24",17,7],["2026-W25",10,6],["2026-W26",15,7],["2026-W27",17,7],["2026-W28",14,7],["2026-W29",13,7],["2026-W30",17,7],["2026-W31",21,7],["2026-W32",19,7],["2026-W33",2,1]],"5tgRcUIenRLzNHuAT4Udhu":[["2026-W07",5,2],["2026-W08",21,7],["2026-W09",32,7],["2026-W10",30,7],["2026-W11",34,7],["2026-W12",26,7],["2026-W13",25,7],["2026-W14",26,7],["2026-W15",24,7],["2026-W16",22,7],["2026-W17",24,7],["2026-W18",28,7],["2026-W19",21,7],["2026-W20",27,7],["2026-W21",24,7],["2026-W22",21,7],["2026-W23",20,7],["2026-W24",18,7],["2026-W25",18,6],["2026-W26",17,7],["2026-W27",19,7],["2026-W28",20,7],["2026-W29",16,7],["2026-W30",21,7],["2026-W31",22,7],["2026-W32",20,7],["2026-W33",3,1]],"64TdxsdAWzmF293K9dlxG2":[["2026-W18",13,6],["2026-W19",2,2]],"6UYXSXrfs0VNY1Goza3QZv":[["2026-W13",9,3],["2026-W14",26,7],["2026-W15",19,7],["2026-W16",4,2]],"7autxavukBbD6EHLBxk344":[["2026-W18",34,7],["2026-W19",119,7],["2026-W20",114,7],["2026-W21",105,7],["2026-W22",92,7],["2026-W23",78,7],["2026-W24",75,7],["2026-W25",66,6],["2026-W26",59,7],["2026-W27",75,7],["2026-W28",74,7],["2026-W29",57,7],["2026-W30",61,7],["2026-W31",63,7],["2026-W32",70,7],["2026-W33",9,1]],"7FGQEc5uHWaNO9de8ukfnP":[["2026-W12",15,5],["2026-W13",5,3],["2026-W14",18,6],["2026-W15",5,2],["2026-W18",17,6],["2026-W19",9,3],["2026-W27",11,5],["2026-W28",4,1],["2026-W29",32,7],["2026-W30",31,7],["2026-W31",40,7],["2026-W32",37,7],["2026-W33",10,1]]},"reliability":{"0KWNDmgdm1qpjkFR5Afc9B":{"weeks":27,"fullWeeks":24,"signal":0.56},"0LqAOilr2am1uzcPFpLZuq":{"weeks":4,"fullWeeks":1,"signal":null},"0pQus2qwWo0mBQ3kJYQzWs":{"weeks":2,"fullWeeks":0,"signal":0.87},"0yQ6AqQTIo9rEqxEhQEgnn":{"weeks":3,"fullWeeks":0,"signal":null},"1mXjVANI52YlC9p8ezrQOi":{"weeks":6,"fullWeeks":1,"signal":0.62},"2ClTRLxqCo0XLWM0i5emPj":{"weeks":2,"fullWeeks":0,"signal":null},"2o0iDBT6JdzLoMEKEH9t09":{"weeks":5,"fullWeeks":2,"signal":0.31},"2oYnQqYNtVntgFmQzJ8w9e":{"weeks":4,"fullWeeks":0,"signal":0.43},"2QdwrCBPnkzLQdT8MG4N7s":{"weeks":21,"fullWeeks":18,"signal":1.0},"2T6OYYXolbGW5al7CN9pyQ":{"weeks":2,"fullWeeks":0,"signal":null},"2w2J0f3Fuorw01qDoqGPRQ":{"weeks":27,"fullWeeks":24,"signal":2.24},"2xjUohMRmALykvtyWO9RgC":{"weeks":16,"fullWeeks":13,"signal":0.76},"30z2Uvti6avpIBjJjSzOJ4":{"weeks":22,"fullWeeks":12,"signal":0.41},"34RGdLe7N46QKey8oPGHMQ":{"weeks":22,"fullWeeks":16,"signal":0.89},"3HbIIQmDmeWSfAC0c8Mdib":{"weeks":27,"fullWeeks":24,"signal":0.6},"3j3d3essIaiBhSVNKmWkJp":{"weeks":22,"fullWeeks":20,"signal":1.81},"3jmdfJOlbtBuJjTZu2dt9n":{"weeks":2,"fullWeeks":0,"signal":null},"3oSth5cpzQFIDtFz3tktLX":{"weeks":27,"fullWeeks":24,"signal":2.08},"3tIgSaR1F86qWnVK1FBFEI":{"weeks":7,"fullWeeks":2,"signal":0.6},"3yvyOHGzWsfZ01aiPIdobz":{"weeks":27,"fullWeeks":24,"signal":2.0},"4DfIxfW4dYEA2bESKkXybL":{"weeks":27,"fullWeeks":24,"signal":1.78},"4okxpsvl9zGntySwuPZlSF":{"weeks":27,"fullWeeks":24,"signal":1.12},"4SS97ZLuDKfAkNYYudsORc":{"weeks":16,"fullWeeks":14,"signal":0.89},"50cnwTxU70x8zEBI8QroFp":{"weeks":15,"fullWeeks":8,"signal":0.47},"5AtiqHgg1KJ3abdZ4LBcWx":{"weeks":18,"fullWeeks":14,"signal":1.08},"5tgRcUIenRLzNHuAT4Udhu":{"weeks":27,"fullWeeks":24,"signal":0.72},"64TdxsdAWzmF293K9dlxG2":{"weeks":2,"fullWeeks":0,"signal":null},"6UYXSXrfs0VNY1Goza3QZv":{"weeks":4,"fullWeeks":2,"signal":0.35},"7autxavukBbD6EHLBxk344":{"weeks":16,"fullWeeks":14,"signal":1.87},"7FGQEc5uHWaNO9de8ukfnP":{"weeks":13,"fullWeeks":4,"signal":1.23}}};
+
+// Spike/dip sensitivity. A flag must clear all three tests:
+//   z      - deviation from the playlist's own trailing median, in robust (MAD) units
+//   minAbs - minimum change in listeners/day, so tiny counts can't produce huge z
+//   minPct - minimum relative change
+// The absolute floor matters because a 3.0 -> 2.2 move scores z=-10 on these volumes.
+const SENSITIVITY = {
+  conservative: { label: "Conservative", z: 3.5, minAbs: 1.5, minPct: 30 },
+  balanced:     { label: "Balanced",     z: 3.0, minAbs: 1.0, minPct: 25 },
+  sensitive:    { label: "Sensitive",    z: 2.5, minAbs: 0.75, minPct: 20 },
+};
+const MIN_DAYS = 4;      // a week needs this many reported days to be comparable
+const MIN_HISTORY = 3;   // and this many prior comparable weeks to have a baseline
+
+const median = (xs) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+// Flag weeks that deviate from each playlist's own recent norm.
+function detectFlags(weeksByPid, cfg) {
+  const out = [];
+  for (const [pid, series] of Object.entries(weeksByPid)) {
+    const usable = series.filter(r => r[2] >= MIN_DAYS);
+    for (let i = 0; i < usable.length; i++) {
+      const hist = usable.slice(Math.max(0, i - 8), i).map(r => r[1] / r[2]);
+      if (hist.length < MIN_HISTORY) continue;
+      const base = median(hist);
+      if (!base) continue;
+      const mad = median(hist.map(v => Math.abs(v - base)));
+      let scale = mad > 0 ? mad * 1.4826 : null;
+      if (scale === null) {
+        const mean = hist.reduce((a, b) => a + b, 0) / hist.length;
+        scale = Math.sqrt(hist.reduce((s, v) => s + (v - mean) ** 2, 0) / hist.length);
+      }
+      if (!scale || !isFinite(scale) || scale === 0) continue;
+
+      const perDay = usable[i][1] / usable[i][2];
+      const z = (perDay - base) / scale;
+      const absChg = perDay - base;
+      const pctChg = (absChg / base) * 100;
+      if (Math.abs(z) < cfg.z || Math.abs(absChg) < cfg.minAbs || Math.abs(pctChg) < cfg.minPct) continue;
+
+      out.push({
+        pid, week: usable[i][0], perDay, baseline: base, total: usable[i][1],
+        days: usable[i][2], z, absChg, pctChg,
+      });
+    }
+  }
+  return out.sort((a, b) => b.week.localeCompare(a.week) || Math.abs(b.z) - Math.abs(a.z));
+}
+
 const VOL_ORDER = { very_high: 5, high: 4, medium: 3, low: 2, very_low: 1 };
 const VOL_LABEL = { very_high: "Very High", high: "High", medium: "Medium", low: "Low", very_low: "Very Low" };
 const VOL_CLR = { very_high: "#22c55e", high: "#4ade80", medium: "#facc15", low: "#f97316", very_low: "#94a3b8" };
@@ -36,6 +93,9 @@ export default function Dashboard() {
   const [page, setPage] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState(null);
+  const [listeners, setListeners] = useState(LISTENERS_BUNDLED);
+  const [listenerSource, setListenerSource] = useState("bundled");
+  const [sensitivity, setSensitivity] = useState("balanced");
   const cache = useRef(new Map());
   const PAGE_SIZE = 30;
 
@@ -57,6 +117,23 @@ export default function Dashboard() {
     const { archives: list } = await resp.json();
     setArchives(list || []);
     return list || [];
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await fetch("/api/listeners");
+        if (resp.ok) {
+          const live = await resp.json();
+          if (live && live.weeks && Object.keys(live.weeks).length) {
+            setListeners(live);
+            setListenerSource("live");
+          }
+        }
+      } catch {
+        // keep the bundled copy
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -269,6 +346,53 @@ export default function Dashboard() {
       movers,
     };
   }, [data, prevData, filterCountry, filterVolume, search]);
+
+  // Listener flags, plus the ranking movement for the weeks currently selected,
+  // so a spike can be read against what happened to that playlist's rankings.
+  const listenerView = useMemo(() => {
+    if (!listeners || !listeners.weeks) return null;
+    const cfg = SENSITIVITY[sensitivity];
+    const flags = detectFlags(listeners.weeks, cfg);
+
+    const allWeeks = [...new Set(
+      Object.values(listeners.weeks).flat().map(r => r[0])
+    )].sort();
+
+    // Portfolio-wide weekly totals, restricted to fully-reported weeks so a
+    // partial week doesn't look like a collapse.
+    const totalsByWeek = {};
+    for (const series of Object.values(listeners.weeks)) {
+      for (const [wk, total, days] of series) {
+        if (days < 7) continue;
+        totalsByWeek[wk] = (totalsByWeek[wk] || 0) + total;
+      }
+    }
+
+    const rankDelta = {};
+    if (analytics && analytics.prevStats) {
+      for (const [pid, s] of Object.entries(analytics.stats)) {
+        const p = analytics.prevStats[pid];
+        if (!p) continue;
+        rankDelta[pid] = { dAvg: s.avg - p.avg, dCount: s.total - p.total };
+      }
+    }
+
+    const covered = Object.keys(listeners.weeks).length;
+    const lowSignal = Object.values(listeners.reliability || {})
+      .filter(r => r.signal !== null && r.signal < 1).length;
+
+    return {
+      flags,
+      spikes: flags.filter(f => f.z > 0),
+      dips: flags.filter(f => f.z < 0),
+      allWeeks,
+      totalsByWeek,
+      rankDelta,
+      covered,
+      lowSignal,
+      cfg,
+    };
+  }, [listeners, sensitivity, analytics]);
 
   useEffect(() => { setPage(0); }, [tab, filterCountry, filterVolume, search]);
 
@@ -500,6 +624,7 @@ export default function Dashboard() {
         {tabBtn("strike", `Strike Distance (${analytics.strike.length})`)}
         {tabBtn("movers", "Biggest Movers")}
         {tabBtn("number1", `#1 Rankings (${analytics.ones.length})`)}
+        {tabBtn("listeners", `Listeners${listenerView ? ` (${listenerView.flags.length})` : ""}`)}
       </div>
 
       {tab === "overview" && (
@@ -723,6 +848,137 @@ export default function Dashboard() {
           <Paginator total={analytics.ones.length} />
         </div>
       )}
+
+      {tab === "listeners" && listenerView && (
+        <div>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 6, lineHeight: 1.5 }}>
+            New listeners per playlist per day, aggregated weekly. A week is flagged when it
+            departs from that playlist{"\u2019"}s own recent norm \u2014 not against a portfolio-wide
+            threshold, since these playlists differ hugely in size.
+          </p>
+          <p style={{ fontSize: 12, color: "#666", marginBottom: 18, lineHeight: 1.5 }}>
+            Covers {listenerView.covered} of {ALL_IDS.length} playlists
+            {listeners.dateRange && <> \u00b7 {listeners.dateRange[0]} to {listeners.dateRange[1]}</>}
+            {" \u00b7 "}source: {listenerSource === "live" ? "live sheet" : "bundled snapshot"}
+          </p>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 11, color: "#888", letterSpacing: "0.05em", fontWeight: 600 }}>SENSITIVITY</label>
+            <select value={sensitivity} onChange={e => setSensitivity(e.target.value)}
+              style={{ padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+                       borderRadius: 8, color: "#fff", fontSize: 13, fontFamily: "'DM Sans', sans-serif", outline: "none" }}>
+              {Object.entries(SENSITIVITY).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 11, color: "#555" }}>
+              needs |z| \u2265 {listenerView.cfg.z}, \u2265 {listenerView.cfg.minAbs}/day and \u2265 {listenerView.cfg.minPct}% change
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#1DB954" }}>{listenerView.spikes.length}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>SPIKES</div>
+            </div>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#ef4444" }}>{listenerView.dips.length}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>DIPS</div>
+            </div>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{listenerView.covered}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>PLAYLISTS</div>
+            </div>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 120 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#facc15" }}>{listenerView.lowSignal}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>LOW SIGNAL</div>
+            </div>
+          </div>
+
+          {listenerView.lowSignal > 0 && (
+            <div style={{ ...card, padding: "12px 16px", marginBottom: 20, borderColor: "rgba(250,204,21,0.25)" }}>
+              <div style={{ fontSize: 12, color: "#facc15", fontWeight: 600, marginBottom: 4 }}>
+                Read low-signal playlists with caution
+              </div>
+              <div style={{ fontSize: 12, color: "#999", lineHeight: 1.5 }}>
+                On {listenerView.lowSignal} of {listenerView.covered} playlists, week-to-week variation is no larger
+                than ordinary day-to-day variation, so a flagged week there may be noise rather than a real change.
+                Those rows are marked <span style={{ color: "#facc15" }}>low signal</span> below.
+              </div>
+            </div>
+          )}
+
+          {listenerView.flags.length === 0 ? (
+            <div style={{ ...card, textAlign: "center", padding: 40, color: "#555" }}>
+              No weeks clear the {listenerView.cfg.label.toLowerCase()} threshold. Try a higher sensitivity.
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ color: "#666", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Week</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Playlist</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Change</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Per day</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Week total</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Ranking shift</th>
+              </tr></thead>
+              <tbody>
+                {listenerView.flags.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((f, i) => {
+                  const rel = (listeners.reliability || {})[f.pid];
+                  const weak = rel && rel.signal !== null && rel.signal < 1;
+                  const rd = listenerView.rankDelta[f.pid];
+                  const sameWeek = f.week === (data && data.weekKey);
+                  return (
+                    <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                      <td style={{ padding: "10px 12px", color: "#aaa", fontWeight: 500 }}>
+                        {f.week}
+                        {f.days < 7 && <span style={{ color: "#666", fontSize: 10 }}> ({f.days}d)</span>}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <SpotifyLink pid={f.pid} />
+                        {weak && <div style={{ fontSize: 10, color: "#facc15" }}>low signal</div>}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span style={{
+                          padding: "2px 10px", borderRadius: 4, fontWeight: 700, fontSize: 13,
+                          background: f.z > 0 ? "rgba(29,185,84,0.15)" : "rgba(239,68,68,0.15)",
+                          color: f.z > 0 ? "#1DB954" : "#ef4444"
+                        }}>
+                          {f.z > 0 ? "\u25b2" : "\u25bc"} {Math.abs(f.pctChg).toFixed(0)}%
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#ddd" }}>
+                        {f.baseline.toFixed(1)} \u2192 <strong>{f.perDay.toFixed(1)}</strong>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#888" }}>{f.total.toLocaleString()}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {!sameWeek || !rd ? (
+                          <span style={{ color: "#555", fontSize: 11 }}>
+                            {sameWeek ? "no ranking data" : "\u2014"}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: rd.dAvg < 0 ? "#1DB954" : rd.dAvg > 0 ? "#ef4444" : "#888" }}>
+                            {rd.dAvg < 0 ? "\u25b2" : rd.dAvg > 0 ? "\u25bc" : ""} {Math.abs(rd.dAvg).toFixed(1)} avg pos
+                            {rd.dCount !== 0 && <span style={{ color: "#666" }}>, {rd.dCount > 0 ? "+" : ""}{rd.dCount} kw</span>}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          <Paginator total={listenerView.flags.length} />
+
+          <div style={{ fontSize: 11, color: "#555", marginTop: 16, lineHeight: 1.6 }}>
+            The ranking-shift column is populated only for flags in the week you are viewing
+            ({data && data.weekKey}), compared against {prevData ? prevData.weekKey : "your chosen compare week"},
+            because only those two snapshots are loaded. Change the week picker above to line up a different flag.
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
