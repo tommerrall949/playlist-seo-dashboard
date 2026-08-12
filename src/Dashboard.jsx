@@ -32,6 +32,73 @@ const median = (xs) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
+const TREND_WINDOWS = { 4: "Last 4 weeks vs previous 4", 8: "Last 8 weeks vs previous 8" };
+const TREND_MIN_PCT = 20;   // a trend must move at least this much...
+const TREND_MIN_ABS = 0.5;  // ...and by at least this many listeners/day
+
+const weekNum = (w) => {
+  const [y, k] = w.split("-W");
+  return parseInt(y, 10) * 53 + parseInt(k, 10);
+};
+
+// Compare each playlist's recent window against the preceding one.
+// Windows are anchored to real calendar weeks, not to "the last N rows that
+// happen to have data" - otherwise a playlist whose feed stopped in April
+// would show a three-month-old trend as though it were current.
+function computeTrends(weeksByPid, win) {
+  const anchorWeek = Math.max(
+    ...Object.values(weeksByPid).flat().filter(r => r[2] >= MIN_DAYS).map(r => weekNum(r[0]))
+  );
+  if (!isFinite(anchorWeek)) return { rows: [], stale: 0, sparse: 0, anchorWeek: null };
+
+  const recLo = anchorWeek - win + 1, recHi = anchorWeek;
+  const priLo = anchorWeek - 2 * win + 1, priHi = anchorWeek - win;
+  const needRecent = Math.max(3, Math.floor(win / 2));
+  const needPrior = Math.max(3, Math.floor(win / 2));
+
+  const rows = [];
+  let stale = 0, sparse = 0;
+
+  for (const [pid, series] of Object.entries(weeksByPid)) {
+    const usable = series.filter(r => r[2] >= MIN_DAYS)
+      .map(r => ({ n: weekNum(r[0]), week: r[0], perDay: r[1] / r[2] }));
+    if (!usable.length) continue;
+
+    // Reporting stopped before the recent window opened - not a trend, just absent.
+    if (Math.max(...usable.map(u => u.n)) < recLo) { stale++; continue; }
+
+    const rec = usable.filter(u => u.n >= recLo && u.n <= recHi);
+    if (rec.length < needRecent) { sparse++; continue; }
+
+    let pri = usable.filter(u => u.n >= priLo && u.n <= priHi);
+    let wideBaseline = false;
+    if (pri.length < needPrior) {
+      // Fall back to whatever usable weeks precede the recent window, clearly
+      // labelled, so sparsely-reported playlists still surface instead of vanishing.
+      pri = usable.filter(u => u.n < recLo).slice(-8);
+      wideBaseline = true;
+      if (pri.length < 2) { sparse++; continue; }
+    }
+
+    const mean = (xs) => xs.reduce((a, b) => a + b.perDay, 0) / xs.length;
+    const rm = mean(rec), pm = mean(pri);
+    if (!pm) continue;
+
+    rows.push({
+      pid, recent: rm, prior: pm,
+      pct: ((rm - pm) / pm) * 100,
+      abs: rm - pm,
+      nRecent: rec.length, nPrior: pri.length,
+      recentSpan: [rec[0].week, rec[rec.length - 1].week],
+      priorSpan: [pri[0].week, pri[pri.length - 1].week],
+      wideBaseline,
+    });
+  }
+
+  rows.sort((a, b) => a.pct - b.pct);
+  return { rows, stale, sparse, anchorWeek };
+}
+
 // Flag weeks that deviate from each playlist's own recent norm.
 function detectFlags(weeksByPid, cfg) {
   const out = [];
@@ -97,6 +164,7 @@ export default function Dashboard() {
   const [summaries, setSummaries] = useState(null);
   const [listenerSource, setListenerSource] = useState("bundled");
   const [sensitivity, setSensitivity] = useState("balanced");
+  const [trendWin, setTrendWin] = useState(8);
   const cache = useRef(new Map());
   const PAGE_SIZE = 30;
 
@@ -416,6 +484,38 @@ export default function Dashboard() {
     };
   }, [listeners, sensitivity, summaries]);
 
+  const trendView = useMemo(() => {
+    if (!listeners || !listeners.weeks) return null;
+    const { rows, stale, sparse, anchorWeek } = computeTrends(listeners.weeks, trendWin);
+
+    // Ranking movement over the same span, using the nearest snapshot at or
+    // before each window's end.
+    const snapWeeks = summaries ? [...summaries.weeks].sort() : [];
+    const nearest = (week) => {
+      const c = snapWeeks.filter(w => w <= week);
+      return c.length ? c[c.length - 1] : null;
+    };
+    for (const r of rows) {
+      const to = nearest(r.recentSpan[1]);
+      const from = nearest(r.priorSpan[1]);
+      if (!to || !from || to === from) { r.shift = { state: "unavailable" }; continue; }
+      const a = summaries.summaries[from] && summaries.summaries[from][r.pid];
+      const b = summaries.summaries[to] && summaries.summaries[to][r.pid];
+      if (!a || !b) { r.shift = { state: "no-data" }; continue; }
+      r.shift = { state: "ok", from, to, dAvg: b[1] - a[1], dOnes: b[2] - a[2] };
+    }
+
+    const significant = rows.filter(r =>
+      Math.abs(r.pct) >= TREND_MIN_PCT && Math.abs(r.abs) >= TREND_MIN_ABS);
+
+    return {
+      rows, stale, sparse, anchorWeek,
+      rising: significant.filter(r => r.pct > 0).sort((a, b) => b.pct - a.pct),
+      falling: significant.filter(r => r.pct < 0),
+      significant,
+    };
+  }, [listeners, trendWin, summaries]);
+
   useEffect(() => { setPage(0); }, [tab, filterCountry, filterVolume, search]);
 
   if (!data || !analytics) {
@@ -647,6 +747,7 @@ export default function Dashboard() {
         {tabBtn("movers", "Biggest Movers")}
         {tabBtn("number1", `#1 Rankings (${analytics.ones.length})`)}
         {tabBtn("listeners", `Listeners${listenerView ? ` (${listenerView.flags.length})` : ""}`)}
+        {tabBtn("trends", `Trends${trendView ? ` (${trendView.significant.length})` : ""}`)}
       </div>
 
       {tab === "overview" && (
@@ -1009,6 +1110,137 @@ export default function Dashboard() {
             {listenerView.snapWeeks.length > 0 && <> Snapshots available: {listenerView.snapWeeks.join(", ")}.</>}
             {" "}Listener data begins {listeners.dateRange && listeners.dateRange[0]}, before ranking
             tracking started, so earlier flags have nothing to compare against.
+          </div>
+        </div>
+      )}
+
+
+      {tab === "trends" && trendView && (
+        <div>
+          <p style={{ fontSize: 13, color: "#888", marginBottom: 6, lineHeight: 1.5 }}>
+            Sustained direction rather than single-week shocks. A playlist sliding 5% a week
+            never trips the spike detector, but loses a third of its listeners in eight weeks.
+          </p>
+          <p style={{ fontSize: 12, color: "#666", marginBottom: 18, lineHeight: 1.5 }}>
+            Windows are anchored to calendar weeks ending {trendView.anchorWeek ? "at the latest complete week" : "-"}
+            {", so a playlist whose reporting stopped months ago is excluded rather than shown as a current trend."}
+            {" "}Weeks with fewer than {MIN_DAYS} reported days are ignored.
+          </p>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 18, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 11, color: "#888", letterSpacing: "0.05em", fontWeight: 600 }}>WINDOW</label>
+            <select value={trendWin} onChange={e => setTrendWin(Number(e.target.value))}
+              style={{ padding: "7px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+                       borderRadius: 8, color: "#fff", fontSize: 13, fontFamily: "'DM Sans', sans-serif", outline: "none" }}>
+              {Object.entries(TREND_WINDOWS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <span style={{ fontSize: 11, color: "#555" }}>
+              marked significant at {TREND_MIN_PCT}% and {TREND_MIN_ABS}/day
+            </span>
+          </div>
+
+          <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 110 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#1DB954" }}>{trendView.rising.length}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>RISING</div>
+            </div>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 110 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#ef4444" }}>{trendView.falling.length}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>FALLING</div>
+            </div>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 110 }}>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{trendView.rows.length}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>MEASURABLE</div>
+            </div>
+            <div style={{ ...card, textAlign: "center", flex: 1, minWidth: 110 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#666" }}>{trendView.stale + trendView.sparse}</div>
+              <div style={{ fontSize: 10, color: "#888", letterSpacing: "0.05em" }}>EXCLUDED</div>
+            </div>
+          </div>
+
+          {(trendView.stale > 0 || trendView.sparse > 0) && (
+            <div style={{ fontSize: 11, color: "#666", marginBottom: 16 }}>
+              Excluded: {trendView.stale} with no recent reporting, {trendView.sparse} with too few
+              comparable weeks to measure.
+            </div>
+          )}
+
+          {trendView.rows.length === 0 ? (
+            <div style={{ ...card, textAlign: "center", padding: 40, color: "#555" }}>
+              Not enough history yet for a trend at this window.
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead><tr style={{ color: "#666", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Playlist</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Trend</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Per day</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Basis</th>
+                <th style={{ padding: "10px 12px", fontWeight: 500 }}>Ranking shift</th>
+              </tr></thead>
+              <tbody>
+                {trendView.rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((r, i) => {
+                  const rel = (listeners.reliability || {})[r.pid];
+                  const weak = rel && rel.signal !== null && rel.signal < 1;
+                  const big = Math.abs(r.pct) >= TREND_MIN_PCT && Math.abs(r.abs) >= TREND_MIN_ABS;
+                  const sh = r.shift || { state: "unavailable" };
+                  return (
+                    <tr key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                      <td style={{ padding: "10px 12px" }}>
+                        <SpotifyLink pid={r.pid} />
+                        {weak && <div style={{ fontSize: 10, color: "#facc15" }}>low signal</div>}
+                        {r.wideBaseline && <div style={{ fontSize: 10, color: "#888" }}>wide baseline</div>}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <span style={{
+                          padding: "2px 10px", borderRadius: 4, fontSize: 13,
+                          fontWeight: big ? 700 : 500,
+                          background: !big ? "rgba(255,255,255,0.05)"
+                            : r.pct > 0 ? "rgba(29,185,84,0.15)" : "rgba(239,68,68,0.15)",
+                          color: !big ? "#888" : r.pct > 0 ? "#1DB954" : "#ef4444"
+                        }}>
+                          {r.pct > 0 ? "▲" : "▼"} {Math.abs(r.pct).toFixed(0)}%
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#ddd" }}>
+                        {r.prior.toFixed(1)} {"→"} <strong>{r.recent.toFixed(1)}</strong>
+                      </td>
+                      <td style={{ padding: "10px 12px", color: "#666", fontSize: 10 }}>
+                        {r.priorSpan[0]}{"–"}{r.priorSpan[1]} ({r.nPrior}w)
+                        <br />vs {r.recentSpan[0]}{"–"}{r.recentSpan[1]} ({r.nRecent}w)
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {sh.state !== "ok" ? (
+                          <span style={{ color: "#555", fontSize: 11 }}>
+                            {sh.state === "no-data" ? "not ranked" : "unavailable"}
+                          </span>
+                        ) : (
+                          <div style={{ fontSize: 11 }}>
+                            <span style={{ color: sh.dAvg < 0 ? "#1DB954" : sh.dAvg > 0 ? "#ef4444" : "#888", fontWeight: 600 }}>
+                              {sh.dAvg < 0 ? "▲" : sh.dAvg > 0 ? "▼" : ""} {Math.abs(sh.dAvg).toFixed(1)} avg pos
+                            </span>
+                            {sh.dOnes !== 0 && (
+                              <span style={{ color: sh.dOnes > 0 ? "#1DB954" : "#ef4444" }}>
+                                {" · "}{sh.dOnes > 0 ? "+" : ""}{sh.dOnes} #1
+                              </span>
+                            )}
+                            <div style={{ color: "#555", fontSize: 10 }}>{sh.from}{"→"}{sh.to}</div>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          <Paginator total={trendView.rows.length} />
+
+          <div style={{ fontSize: 11, color: "#555", marginTop: 16, lineHeight: 1.6 }}>
+            Rows are sorted worst-first so declines surface before gains. Greyed percentages fall below
+            the significance bar and are shown for context only. {"“"}Wide baseline{"”"} means the
+            prior calendar window had too few reported weeks, so earlier weeks were used instead
+            {" — "}the actual span is in the Basis column.
           </div>
         </div>
       )}
